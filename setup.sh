@@ -121,6 +121,7 @@ fi
 printf "\n Connecting to Azure Arc 🚧 \n"
 az connectedk8s connect --name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP
 
+#TODO: Check if service account already present
 # Generate token to connect to Azure k8s cluster
 kubectl create serviceaccount admin-user
 kubectl create clusterrolebinding admin-user-binding --clusterrole cluster-admin --serviceaccount default:admin-user
