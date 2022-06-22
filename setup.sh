@@ -26,14 +26,14 @@ check_vars()
         then
             printf "\$var_name is empty. Please set it up."
         else
-            printf "$var_name is not set." && var_unset=true
+            printf "$var_name is not set.\n" && var_unset=true
         fi 
     done
     [ -n "$var_unset" ] && exit 1
     return 0
 }
 
-check_vars STORE_NAME STORE_TAGS AZ_SP_ID AZ_SP_SECRET GITOPS_REPO GITOPS_PAT GITOPS_BRANCH AZ_ARC_RESOURCEGROUP AZ_ARC_RESOURCEGROUP_LOCATION
+check_vars STORE_NAME STORE_TAGS AZ_SP_ID AZ_SP_SECRET GITOPS_REPO GITOPS_PAT GITOPS_BRANCH AZ_ARC_RESOURCEGROUP AZ_ARC_RESOURCEGROUP_LOCATION AZ_KEYVAULT_SP_ID AZ_KEYVAULT_SP_SECRET SECRET_PROVIDER_NAME
 
 if command -v az -v >/dev/null; then
      printf "\n AZ CLI is present ✅ \n"
@@ -121,6 +121,13 @@ fi
 printf "\n Connecting to Azure Arc 🚧 \n"
 az connectedk8s connect --name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP
 
+printf "\n Creating k8s-extension 🚧 \n"
+az k8s-extension create --cluster-name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP --cluster-type connectedClusters --extension-type Microsoft.AzureKeyVaultSecretsProvider --name $SECRET_PROVIDER_NAME
+
+printf "\n Verifying k8s-extension 🚧 \n"
+az k8s-extension show --cluster-type connectedClusters --cluster-name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP --name $SECRET_PROVIDER_NAME
+
+
 #TODO: Check if service account already present
 # Generate token to connect to Azure k8s cluster
 kubectl create serviceaccount admin-user
@@ -133,5 +140,11 @@ printf $TOKEN
 printf "\n Token to connect to Azure ARC ends here \n"
 
 printf "\n Creating Kubernetes Secrets for Key Valut 🚧 \n"
+
 # Create kubernetes secrets for KV
-kubectl create secret generic secrets-store-creds --from-literal clientid=$AZ_SP_ID --from-literal clientsecret=$AZ_SP_SECRET
+kubectl create secret generic secrets-store-creds --from-literal clientid=$AZ_KEYVAULT_SP_ID --from-literal clientsecret=$AZ_KEYVAULT_SP_SECRET
+
+#Label the created secret.
+kubectl label secret secrets-store-creds secrets-store.csi.k8s.io/used=true
+
+
