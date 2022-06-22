@@ -15,6 +15,9 @@
 
 
 #!/bin/bash
+set -o errexit
+set -o nounset
+set -o pipefail
 
 # Check for Az Cli, env variables
 ##TODO: Check for empty strings in variables
@@ -75,7 +78,7 @@ curl -s https://fluxcd.io/install.sh | sudo bash
 # Setup flux
 flux bootstrap git \
 --url "https://github.com/$GITOPS_REPO" \
---branch main \
+--branch "$GITOPS_BRANCH" \
 --password "$GITOPS_PAT" \
 --token-auth true \
 --path "./deploy/bootstrap/$STORE_NAME"
