@@ -134,7 +134,7 @@ az k8s-extension show --cluster-type connectedClusters --cluster-name $STORE_NAM
 
 #TODO: Check if service account already present
 # Generate token to connect to Azure k8s cluster
-ADMIN_USER=$(kubectl get serviceaccount admin1-user -o jsonpath='{$.metadata.name}' --ignore-not-found)
+ADMIN_USER=$(kubectl get serviceaccount admin-user -o jsonpath='{$.metadata.name}' --ignore-not-found)
 if [ -z "$ADMIN_USER" ]; then
     printf "\n Creating service account 🚧 \n"
     kubectl create serviceaccount admin-user
