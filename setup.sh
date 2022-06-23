@@ -36,7 +36,7 @@ check_vars()
     return 0
 }
 
-check_vars STORE_NAME STORE_TAGS AZ_SP_ID AZ_SP_SECRET GITOPS_REPO GITOPS_PAT GITOPS_BRANCH AZ_ARC_RESOURCEGROUP AZ_ARC_RESOURCEGROUP_LOCATION AZ_KEYVAULT_SP_ID AZ_KEYVAULT_SP_SECRET SECRET_PROVIDER_NAME
+check_vars STORE_NAME STORE_TAGS AZ_SP_ID AZ_SP_SECRET GITOPS_REPO GITOPS_PAT GITOPS_BRANCH AZ_ARC_RESOURCEGROUP AZ_ARC_RESOURCEGROUP_LOCATION AZ_KEYVAULT_SP_ID AZ_KEYVAULT_SP_SECRET SECRET_PROVIDER_NAME TEANANT_ID
 
 if command -v az -v >/dev/null; then
      printf "\n AZ CLI is present ✅ \n"
@@ -60,6 +60,7 @@ curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stabl
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 # Set up config for kubectl
+sudo rm -rf ~/.kube
 mkdir ~/.kube
 sudo microk8s config > ~/.kube/config
 printf '\n Kubectl installed successfully ✅ \n'
@@ -106,7 +107,7 @@ printf '\n Flux installed successfully ✅\n'
 
 printf "\n Logging in Azure using Service Principal 🚧 \n"
 # Az Login using SP
-az login --service-principal -u $AZ_SP_ID  -p  $AZ_SP_SECRET --tenant 72f988bf-86f1-41af-91ab-2d7cd011db47
+az login --service-principal -u $AZ_SP_ID  -p  $AZ_SP_SECRET --tenant $TEANANT_ID
 
 # Arc setup 
 az extension add --name connectedk8s
