@@ -123,7 +123,7 @@ if [ $(az group exists --name $AZ_ARC_RESOURCEGROUP) == false ]; then
 fi
 
 printf "\n Connecting to Azure Arc 🚧 \n"
-az connectedk8s connect --name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP
+az connectedk8s connect --name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP --tags $STORE_TAGS
 
 printf "\n Creating k8s-extension 🚧 \n"
 az k8s-extension create --cluster-name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP --cluster-type connectedClusters --extension-type Microsoft.AzureKeyVaultSecretsProvider --name $SECRET_PROVIDER_NAME
@@ -134,10 +134,21 @@ az k8s-extension show --cluster-type connectedClusters --cluster-name $STORE_NAM
 
 #TODO: Check if service account already present
 # Generate token to connect to Azure k8s cluster
-kubectl create serviceaccount admin-user
-kubectl create clusterrolebinding admin-user-binding --clusterrole cluster-admin --serviceaccount default:admin-user
+ADMIN_USER=$(kubectl get serviceaccount admin1-user -o jsonpath='{$.metadata.name}' --ignore-not-found)
+if [ -z "$ADMIN_USER" ]; then
+    printf "\n Creating service account 🚧 \n"
+    kubectl create serviceaccount admin-user
+else
+    printf "\n Service account already exist. \n"
+fi
 
-#SECRET_NAME=$(kubectl get serviceaccount admin-user -o jsonpath='{$.secrets[0].name}')
+CLUSTER_ROLE_BINDING=$(kubectl get clusterrolebinding admin-user-binding -o jsonpath='{$.metadata.name}' --ignore-not-found)
+if [ -z "$CLUSTER_ROLE_BINDING" ]; then
+    printf "\n Creating cluster role binding 🚧 \n"
+    kubectl create clusterrolebinding admin-user-binding --clusterrole cluster-admin --serviceaccount default:admin-user
+else
+    printf "\n Cluster role binding already exist. \n"     
+fi
 
 # Generating a secret
 kubectl apply -f - <<EOF
@@ -159,7 +170,13 @@ printf "\n Token to connect to Azure ARC ends here \n"
 printf "\n Creating Kubernetes Secrets for Key Valut 🚧 \n"
 
 # Create kubernetes secrets for KV
-kubectl create secret generic secrets-store-creds --from-literal clientid=$AZ_KEYVAULT_SP_ID --from-literal clientsecret=$AZ_KEYVAULT_SP_SECRET
+SECRET_CREDS=$(kubectl get secret secrets-store-creds -o jsonpath='{$.metadata.name}' --ignore-not-found)
+if [ -z "$SECRET_CREDS" ]; then
+    printf "\n Creating secret store credentials 🚧 \n"   
+    kubectl create secret generic secrets-store-creds --from-literal clientid=$AZ_KEYVAULT_SP_ID --from-literal clientsecret=$AZ_KEYVAULT_SP_SECRET
+else
+    printf "\n Secret store credentials already exist. \n"         
+fi
 
 #Label the created secret.
 kubectl label secret secrets-store-creds secrets-store.csi.k8s.io/used=true
