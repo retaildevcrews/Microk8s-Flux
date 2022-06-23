@@ -9,7 +9,10 @@
 
 ###
 # How to run this script
-# Set all the environment variables listed in .env-tempalte usign appropriate values in your terminal
+# Copy the .env-template to .env file and set all the appropriate values in the variables listed in .env file
+# You'll need to add store name, tags (if any), Azure service principal for setting up Arc, gitops repo, branch name and token
+# for flux. To setup Key vault you'll also need another Azure service prinicpal which has permissions to get the secrets from KV 
+
 # Run this script using <ScriptPath>/setup.sh 
 ####
 
@@ -19,18 +22,15 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+#Load environment variables from the file
+export $(grep -v '^#' .env | xargs)
+
 # Check for Az Cli, env variables
-##TODO: Check for empty strings in variables
 check_vars()
 {
     var_names=("$@")
     for var_name in "${var_names[@]}"; do
-        if [ -z "$var_name" ]
-        then
-            printf "\$var_name is empty. Please set it up."
-        else
-            printf "$var_name is not set.\n" && var_unset=true
-        fi 
+        [ -z "${!var_name}" ] && echo "$var_name is unset." && var_unset=true
     done
     [ -n "$var_unset" ] && exit 1
     return 0
