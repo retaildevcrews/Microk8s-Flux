@@ -11,7 +11,7 @@
 # How to run this script
 # Copy the .env-template to .env file and set all the appropriate values in the variables listed in .env file
 # You'll need to add store name, tags (if any), Azure service principal for setting up Arc, gitops repo, branch name and token
-# for flux. To setup Key vault you'll also need another Azure service prinicpal which has permissions to get the secrets from KV 
+# for flux. To setup Key vault you'll also need Azure service prinicpal which has permissions to get the secrets from KV 
 
 # Run this script using <ScriptPath>/setup.sh 
 ####
@@ -107,7 +107,7 @@ printf '\n Flux installed successfully ✅\n'
 
 printf "\n Logging in Azure using Service Principal 🚧 \n"
 # Az Login using SP
-az login --service-principal -u $AZ_SP_ID  -p  $AZ_SP_SECRET --tenant $TEANANT_ID
+az login --service-principal -u $AZ_SP_ID  -p  $AZ_SP_SECRET --tenant $AZ_TEANANT_ID
 
 # Arc setup 
 az extension add --name connectedk8s
