@@ -19,7 +19,7 @@
 
 #!/bin/bash
 set -o errexit
-set -o nounset
+#set -o nounset
 set -o pipefail
 
 #Load environment variables from the file
@@ -36,7 +36,7 @@ check_vars()
     return 0
 }
 
-check_vars STORE_NAME STORE_TAGS AZ_SP_ID AZ_SP_SECRET GITOPS_REPO GITOPS_PAT GITOPS_BRANCH AZ_ARC_RESOURCEGROUP AZ_ARC_RESOURCEGROUP_LOCATION AZ_KEYVAULT_SP_ID AZ_KEYVAULT_SP_SECRET SECRET_PROVIDER_NAME AZ_TEANANT_ID
+check_vars STORE_NAME AZ_SP_ID AZ_SP_SECRET GITOPS_REPO GITOPS_PAT GITOPS_BRANCH AZ_ARC_RESOURCEGROUP AZ_ARC_RESOURCEGROUP_LOCATION AZ_KEYVAULT_SP_ID AZ_KEYVAULT_SP_SECRET SECRET_PROVIDER_NAME AZ_TEANANT_ID
 
 if command -v az -v >/dev/null; then
      printf "\n AZ CLI is present ✅ \n"
@@ -123,7 +123,7 @@ if [ $(az group exists --name $AZ_ARC_RESOURCEGROUP) == false ]; then
 fi
 
 printf "\n Connecting to Azure Arc 🚧 \n"
-az connectedk8s connect --name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP --tags $STORE_TAGS
+az connectedk8s connect --name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP
 
 printf "\n Creating k8s-extension 🚧 \n"
 az k8s-extension create --cluster-name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP --cluster-type connectedClusters --extension-type Microsoft.AzureKeyVaultSecretsProvider --name $SECRET_PROVIDER_NAME
@@ -163,10 +163,11 @@ EOF
 
 TOKEN=$(kubectl get secret admin-user -o jsonpath='{$.data.token}' | base64 -d | sed $'s/$/\\\n/g')
 
-printf "\n Token to connect to Azure ARC starts here \n"
+printf "\n ####### Token to connect to Azure ARC starts here ######## \n"
 printf $TOKEN
-printf "\n Token to connect to Azure ARC ends here \n"
-
+printf "\n ####### Token to connect to Azure ARC ends here   ######### \n"
+echo $TOKEN > token.txt
+printf "\n Token is saved at token.txt file \n"
 printf "\n Creating Kubernetes Secrets for Key Valut 🚧 \n"
 
 # Create kubernetes secrets for KV
@@ -174,11 +175,8 @@ SECRET_CREDS=$(kubectl get secret secrets-store-creds -o jsonpath='{$.metadata.n
 if [ -z "$SECRET_CREDS" ]; then
     printf "\n Creating secret store credentials 🚧 \n"   
     kubectl create secret generic secrets-store-creds --from-literal clientid=$AZ_KEYVAULT_SP_ID --from-literal clientsecret=$AZ_KEYVAULT_SP_SECRET
+    #Label the created secret.
+    kubectl label secret secrets-store-creds secrets-store.csi.k8s.io/used=true
 else
     printf "\n Secret store credentials already exist. \n"         
 fi
-
-#Label the created secret.
-kubectl label secret secrets-store-creds secrets-store.csi.k8s.io/used=true
-
-
