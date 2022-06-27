@@ -117,7 +117,7 @@ flux create kustomization apps \
 --source GitRepository/gitops \
 --path "./deploy/apps/$STORE_NAME" \
 --prune true \
---interval 1m
+--interval 10m
 
 flux reconcile source git gitops
 printf '\n Flux installed successfully ✅\n'
