@@ -47,8 +47,13 @@ fi
 
 
 printf "\n Starting microk8s installation 🚧 \n"
+
+sudo systemctl start snapd.socket
 # Install & set up microk8s
 sudo snap install microk8s --classic
+
+# sleep to avoid timing issues
+sleep 10
 
 # Check microk8s status
 sudo microk8s status --wait-ready
