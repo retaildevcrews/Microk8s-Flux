@@ -14,6 +14,20 @@
 # for flux. To setup Key vault you'll also need Azure service prinicpal which has permissions to get the secrets from KV 
 
 # Run this script using <ScriptPath>/setup.sh 
+
+### Optional - DNS Issue Fix - To be used only when resolv.conf related issue of DNS name appending at end of all http calls from microk8s is observed
+## Uncomment lines below to overwrite resolv.conf file and make it immutable
+
+# sudo apt-get install e2fsprogs
+# sudo rm /etc/resolv.conf
+# sudo bash -c 'echo "nameserver 127.0.0.53" > /etc/resolv.conf'
+# sudo bash -c 'echo "options edns0 trust-ad" >> /etc/resolv.conf'
+# sudo chattr +i /etc/resolv.conf
+
+## To make the resolv.conf mutable again, in case one has to
+# sudo chattr -i /etc/resolv.conf
+
+
 ####
 
 
