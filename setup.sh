@@ -1,23 +1,42 @@
+####
+# This script will install the microk8s, kubectl, flux, enable flux with the git repo provided in the environment variables, add
+# cluster to Microsoft Azure using Azure Arc & Kubernetes secrets which contains Service principal details provided in environment.
+# This scripts also generates the k8s sa token which can be used to access this cluster resources from Microsoft azure arc.
+
+# Prerequisite: 
+# 1. Environment variables listed in .env-template to be set
+# 2. Azure CLI
+
+###
+# How to run this script
+# Copy the .env-template to .env file and set all the appropriate values in the variables listed in .env file
+# You'll need to add store name, tags (if any), Azure service principal for setting up Arc, gitops repo, branch name and token
+# for flux. To setup Key vault you'll also need Azure service prinicpal which has permissions to get the secrets from KV 
+
+# Run this script using <ScriptPath>/setup.sh 
+####
+
+
 #!/bin/bash
+set -o errexit
+#set -o nounset
+set -o pipefail
+
+#Load environment variables from the file
+export $(grep -v '^#' .env | xargs)
 
 # Check for Az Cli, env variables
-##TODO: Check for empty strings in variables
 check_vars()
 {
     var_names=("$@")
     for var_name in "${var_names[@]}"; do
-        if [ -z "$var_name" ]
-        then
-            printf "\$var_name is empty. Please set it up."
-        else
-            printf "$var_name is not set." && var_unset=true
-        fi 
+        [ -z "${!var_name}" ] && echo "$var_name is unset." && var_unset=true
     done
     [ -n "$var_unset" ] && exit 1
     return 0
 }
 
-# check_vars STORE_NAME STORE_TAGS AZ_SP_ID AZ_SP_SECRET GITOPS_REPO GITOPS_PAT GITOPS_BRANCH AZ_ARC_RESOURCEGROUP AZ_ARC_RESOURCEGROUP_LOCATION
+check_vars STORE_NAME AZ_SP_ID AZ_SP_SECRET GITOPS_REPO GITOPS_PAT GITOPS_BRANCH AZ_ARC_RESOURCEGROUP AZ_ARC_RESOURCEGROUP_LOCATION AZ_KEYVAULT_SP_ID AZ_KEYVAULT_SP_SECRET SECRET_PROVIDER_NAME AZ_TEANANT_ID
 
 if command -v az -v >/dev/null; then
      printf "\n AZ CLI is present ✅ \n"
@@ -41,6 +60,7 @@ curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stabl
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 # Set up config for kubectl
+sudo rm -rf ~/.kube
 mkdir ~/.kube
 sudo microk8s config > ~/.kube/config
 printf '\n Kubectl installed successfully ✅ \n'
@@ -59,7 +79,7 @@ curl -s https://fluxcd.io/install.sh | sudo bash
 # Setup flux
 flux bootstrap git \
 --url "https://github.com/$GITOPS_REPO" \
---branch main \
+--branch "$GITOPS_BRANCH" \
 --password "$GITOPS_PAT" \
 --token-auth true \
 --path "./deploy/bootstrap/$STORE_NAME"
@@ -87,7 +107,7 @@ printf '\n Flux installed successfully ✅\n'
 
 printf "\n Logging in Azure using Service Principal 🚧 \n"
 # Az Login using SP
-az login --service-principal -u $AZ_SP_ID  -p  $AZ_SP_SECRET --tenant 72f988bf-86f1-41af-91ab-2d7cd011db47
+az login --service-principal -u $AZ_SP_ID  -p  $AZ_SP_SECRET --tenant $AZ_TEANANT_ID
 
 # Arc setup 
 az extension add --name connectedk8s
@@ -105,7 +125,58 @@ fi
 printf "\n Connecting to Azure Arc 🚧 \n"
 az connectedk8s connect --name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP
 
+printf "\n Creating k8s-extension 🚧 \n"
+az k8s-extension create --cluster-name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP --cluster-type connectedClusters --extension-type Microsoft.AzureKeyVaultSecretsProvider --name $SECRET_PROVIDER_NAME
 
+printf "\n Verifying k8s-extension 🚧 \n"
+az k8s-extension show --cluster-type connectedClusters --cluster-name $STORE_NAME --resource-group $AZ_ARC_RESOURCEGROUP --name $SECRET_PROVIDER_NAME
+
+
+#TODO: Check if service account already present
+# Generate token to connect to Azure k8s cluster
+ADMIN_USER=$(kubectl get serviceaccount admin-user -o jsonpath='{$.metadata.name}' --ignore-not-found)
+if [ -z "$ADMIN_USER" ]; then
+    printf "\n Creating service account 🚧 \n"
+    kubectl create serviceaccount admin-user
+else
+    printf "\n Service account already exist. \n"
+fi
+
+CLUSTER_ROLE_BINDING=$(kubectl get clusterrolebinding admin-user-binding -o jsonpath='{$.metadata.name}' --ignore-not-found)
+if [ -z "$CLUSTER_ROLE_BINDING" ]; then
+    printf "\n Creating cluster role binding 🚧 \n"
+    kubectl create clusterrolebinding admin-user-binding --clusterrole cluster-admin --serviceaccount default:admin-user
+else
+    printf "\n Cluster role binding already exist. \n"     
+fi
+
+# Generating a secret
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-user
+  annotations:
+    kubernetes.io/service-account.name: admin-user
+type: kubernetes.io/service-account-token
+EOF
+
+TOKEN=$(kubectl get secret admin-user -o jsonpath='{$.data.token}' | base64 -d | sed $'s/$/\\\n/g')
+
+printf "\n ####### Token to connect to Azure ARC starts here ######## \n"
+printf $TOKEN
+printf "\n ####### Token to connect to Azure ARC ends here   ######### \n"
+echo $TOKEN > token.txt
+printf "\n Token is saved at token.txt file \n"
 printf "\n Creating Kubernetes Secrets for Key Valut 🚧 \n"
+
 # Create kubernetes secrets for KV
-kubectl create secret generic secrets-store-creds --from-literal clientid=$AZ_SP_ID --from-literal clientsecret=$AZ_SP_SECRET
+SECRET_CREDS=$(kubectl get secret secrets-store-creds -o jsonpath='{$.metadata.name}' --ignore-not-found)
+if [ -z "$SECRET_CREDS" ]; then
+    printf "\n Creating secret store credentials 🚧 \n"   
+    kubectl create secret generic secrets-store-creds --from-literal clientid=$AZ_KEYVAULT_SP_ID --from-literal clientsecret=$AZ_KEYVAULT_SP_SECRET
+    #Label the created secret.
+    kubectl label secret secrets-store-creds secrets-store.csi.k8s.io/used=true
+else
+    printf "\n Secret store credentials already exist. \n"         
+fi
