@@ -96,31 +96,29 @@ curl -s https://fluxcd.io/install.sh | sudo bash
 . <(flux completion bash)
 
 # Setup flux
-flux bootstrap git \
---url "https://github.com/$GITOPS_REPO" \
---branch "$GITOPS_BRANCH" \
---password "$GITOPS_PAT" \
---token-auth true \
---path "./deploy/bootstrap/$STORE_NAME"
+rm -rf $HOME/$GITOPS_REPO
+git clone https://$GITOPS_PAT@github.com/$GITOPS_REPO $HOME/$GITOPS_REPO
 
-flux create secret git gitops \
+cd $HOME/$GITOPS_REPO
+
+git checkout $GITOPS_BRANCH
+
+kubectl apply -f "clusters/$STORE_NAME/flux-system/controller.yaml" 
+sleep 3 
+
+flux create secret git gitops -n flux-system \
 --url "https://github.com/$GITOPS_REPO" \
 --password "$GITOPS_PAT" \
 --username gitops
 
-flux create source git gitops \
---url "https://github.com/$GITOPS_REPO" \
---branch "$GITOPS_BRANCH" \
---secret-ref gitops
-
-flux create kustomization apps \
---source GitRepository/gitops \
---path "./deploy/apps/$STORE_NAME" \
---prune true \
---interval 10m
+kubectl apply -k "clusters/$STORE_NAME/flux-system/" 
+sleep 5
 
 flux reconcile source git gitops
 printf '\n Flux installed successfully ✅\n'
+
+# Switching Back to Home Directory 
+cd $HOME
 
 ##### ARC region ######
 
